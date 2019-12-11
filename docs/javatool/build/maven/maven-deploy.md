@@ -1,18 +1,18 @@
 # Maven 教程之发布 jar 到私服或中央仓库
 
-> :notebook: 本文已归档到：「[blog](https://github.com/dunwu/blog/blob/master/source/_posts/java/javatool/build/maven/)」
+> 📓 本文已归档到：「[blog](https://github.com/dunwu/blog/blob/master/source/_posts/java/javatool/build/maven/)」
 
 <!-- TOC depthFrom:2 depthTo:3 -->
 
 - [发布 jar 包到中央仓库](#发布-jar-包到中央仓库)
-    - [在 Sonatype 创建 Issue](#在-sonatype-创建-issue)
-    - [使用 GPG 生成公私钥对](#使用-gpg-生成公私钥对)
-    - [Maven 配置](#maven-配置)
-    - [部署和发布](#部署和发布)
+  - [在 Sonatype 创建 Issue](#在-sonatype-创建-issue)
+  - [使用 GPG 生成公私钥对](#使用-gpg-生成公私钥对)
+  - [Maven 配置](#maven-配置)
+  - [部署和发布](#部署和发布)
 - [部署 maven 私服](#部署-maven-私服)
-    - [下载安装 Nexus](#下载安装-nexus)
-    - [启动停止 Nexus](#启动停止-nexus)
-    - [使用 Nexus](#使用-nexus)
+  - [下载安装 Nexus](#下载安装-nexus)
+  - [启动停止 Nexus](#启动停止-nexus)
+  - [使用 Nexus](#使用-nexus)
 - [参考资料](#参考资料)
 
 <!-- /TOC -->

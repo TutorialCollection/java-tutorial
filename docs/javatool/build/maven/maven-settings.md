@@ -1,25 +1,25 @@
 # Maven 教程之 settings.xml 详解
 
-> :notebook: 本文已归档到：「[blog](https://github.com/dunwu/blog/blob/master/source/_posts/java/javatool/build/maven/)」
+> 📓 本文已归档到：「[blog](https://github.com/dunwu/blog/blob/master/source/_posts/java/javatool/build/maven/)」
 
 <!-- TOC depthFrom:2 depthTo:3 -->
 
 - [简介](#简介)
-    - [settings.xml 有什么用？](#settingsxml-有什么用)
-    - [settings.xml 文件位置](#settingsxml-文件位置)
-    - [配置优先级](#配置优先级)
+  - [settings.xml 有什么用？](#settingsxml-有什么用)
+  - [settings.xml 文件位置](#settingsxml-文件位置)
+  - [配置优先级](#配置优先级)
 - [settings.xml 元素详解](#settingsxml-元素详解)
-    - [顶级元素概览](#顶级元素概览)
-    - [LocalRepository](#localrepository)
-    - [InteractiveMode](#interactivemode)
-    - [UsePluginRegistry](#usepluginregistry)
-    - [Offline](#offline)
-    - [PluginGroups](#plugingroups)
-    - [Servers](#servers)
-    - [Mirrors](#mirrors)
-    - [Proxies](#proxies)
-    - [Profiles](#profiles)
-    - [ActiveProfiles](#activeprofiles)
+  - [顶级元素概览](#顶级元素概览)
+  - [LocalRepository](#localrepository)
+  - [InteractiveMode](#interactivemode)
+  - [UsePluginRegistry](#usepluginregistry)
+  - [Offline](#offline)
+  - [PluginGroups](#plugingroups)
+  - [Servers](#servers)
+  - [Mirrors](#mirrors)
+  - [Proxies](#proxies)
+  - [Profiles](#profiles)
+  - [ActiveProfiles](#activeprofiles)
 - [参考资料](#参考资料)
 
 <!-- /TOC -->

@@ -6,14 +6,14 @@
 
 原因很简单，就是 Java 默认的序列化机制（`ObjectInputStream` 和 `ObjectOutputStream`）具有很多缺点。
 
-> 不了解 Java 默认的序列化机制，可以参考：[Java 序列化](https://github.com/dunwu/javacore/blob/master/docs/io/Java序列化.md) 
+> 不了解 Java 默认的序列化机制，可以参考：[Java 序列化](https://github.com/dunwu/javacore/blob/master/docs/io/Java序列化.md)
 
 Java 自身的序列化方式具有以下缺点：
 
 - **无法跨语言使用 **。这点最为致命，对于很多需要跨语言通信的异构系统来说，不能跨语言序列化，即意味着完全无法通信（彼此数据不能识别，当然无法交互了）。
-- **序列化的性能不高**。序列化后的数据体积较大，这大大影响存储和传输的效率。 
--  序列化一定需要实现 `Serializable` 接口。
--  需要关注 `serialVersionUID`。
+- **序列化的性能不高**。序列化后的数据体积较大，这大大影响存储和传输的效率。
+- 序列化一定需要实现 `Serializable` 接口。
+- 需要关注 `serialVersionUID`。
 
 引入二进制序列化库就是为了解决这些问题，这在 RPC 应用中尤为常见。
 
@@ -86,6 +86,7 @@ Java 自身的序列化方式具有以下缺点：
 **（2）选型建议**
 
 - 如果需要跨语言通信，那么可以考虑：Protobuf、Thrift、Hession。
+
   - [thrift](https://github.com/apache/thrift)、[protobuf](https://github.com/protocolbuffers/protobuf) - 适用于对性能敏感，对开发体验要求不高的内部系统。
   - [hessian](http://hessian.caucho.com/doc/hessian-overview.xtp) - 适用于对开发体验敏感，性能有要求的内外部系统。
 
@@ -108,15 +109,48 @@ Java 自身的序列化方式具有以下缺点：
 示例：
 
 ```java
+import org.nustaq.serialization.FSTConfiguration;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+
 public class FstDemo {
 
 	private static FSTConfiguration DEFAULT_CONFIG = FSTConfiguration.createDefaultConfiguration();
 
-	public static <T> byte[] serialize(T obj) {
+	/**
+	 * 将对象序列化为 byte 数组
+	 *
+	 * @param obj 任意对象
+	 * @param <T> 对象的类型
+	 * @return 序列化后的 byte 数组
+	 */
+	public static <T> byte[] writeToBytes(T obj) {
 		return DEFAULT_CONFIG.asByteArray(obj);
 	}
 
-	public static <T> T deserialize(byte[] bytes, Class<T> clazz) throws IOException {
+	/**
+	 * 将对象序列化为 byte 数组后，再使用 Base64 编码
+	 *
+	 * @param obj 任意对象
+	 * @param <T> 对象的类型
+	 * @return 序列化后的字符串
+	 */
+	public static <T> String writeToString(T obj) {
+		byte[] bytes = writeToBytes(obj);
+		return new String(Base64.getEncoder().encode(bytes), StandardCharsets.UTF_8);
+	}
+
+	/**
+	 * 将 byte 数组反序列化为原对象
+	 *
+	 * @param bytes {@link #writeToBytes} 方法序列化后的 byte 数组
+	 * @param clazz 原对象的类型
+	 * @param <T>   原对象的类型
+	 * @return 原对象
+	 */
+	public static <T> T readFromBytes(byte[] bytes, Class<T> clazz) throws IOException {
 		Object obj = DEFAULT_CONFIG.asObject(bytes);
 		if (clazz.isInstance(obj)) {
 			return (T) obj;
@@ -125,19 +159,171 @@ public class FstDemo {
 		}
 	}
 
+	/**
+	 * 将字符串反序列化为原对象，先使用 Base64 解码
+	 *
+	 * @param str   {@link #writeToString} 方法序列化后的字符串
+	 * @param clazz 原对象的类型
+	 * @param <T>   原对象的类型
+	 * @return 原对象
+	 */
+	public static <T> T readFromString(String str, Class<T> clazz) throws IOException {
+		byte[] bytes = str.getBytes(StandardCharsets.UTF_8);
+		return readFromBytes(Base64.getDecoder().decode(bytes), clazz);
+	}
+
 }
 ```
 
 测试：
 
 ```java
-// 序列化
-byte[] bytes = JdkSerializeDemo.serialize(oldBean);
-// 反序列化
-TestBean newBean = JdkSerializeDemo.deserialize(bytes, TestBean.class);
+long begin = System.currentTimeMillis();
+for (int i = 0; i < BATCH_SIZE; i++) {
+    TestBean oldBean = BeanUtils.initJdk8Bean();
+    byte[] bytes = FstDemo.writeToBytes(oldBean);
+    TestBean newBean = FstDemo.readFromBytes(bytes, TestBean.class);
+}
+long end = System.currentTimeMillis();
+System.out.printf("FST 序列化/反序列化耗时：%s", (end - begin));
 ```
 
-## TODO
+## Kryo 应用
+
+### 引入依赖
+
+```xml
+<dependency>
+  <groupId>com.esotericsoftware</groupId>
+  <artifactId>kryo</artifactId>
+  <version>5.0.0-RC4</version>
+</dependency>
+```
+
+### Kryo API
+
+示例：
+
+```java
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
+import com.esotericsoftware.kryo.util.DefaultInstantiatorStrategy;
+import org.objenesis.strategy.StdInstantiatorStrategy;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+
+public class KryoDemo {
+
+	// 每个线程的 Kryo 实例
+	private static final ThreadLocal<Kryo> kryoLocal = ThreadLocal.withInitial(() -> {
+		Kryo kryo = new Kryo();
+
+		/**
+		 * 不要轻易改变这里的配置！更改之后，序列化的格式就会发生变化，
+		 * 上线的同时就必须清除 Redis 里的所有缓存，
+		 * 否则那些缓存再回来反序列化的时候，就会报错
+		 */
+		//支持对象循环引用（否则会栈溢出）
+		kryo.setReferences(true); //默认值就是 true，添加此行的目的是为了提醒维护者，不要改变这个配置
+
+		//不强制要求注册类（注册行为无法保证多个 JVM 内同一个类的注册编号相同；而且业务系统中大量的 Class 也难以一一注册）
+		kryo.setRegistrationRequired(false); //默认值就是 false，添加此行的目的是为了提醒维护者，不要改变这个配置
+
+		//Fix the NPE bug when deserializing Collections.
+		((DefaultInstantiatorStrategy) kryo.getInstantiatorStrategy())
+			.setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
+
+		return kryo;
+	});
+
+	/**
+	 * 获得当前线程的 Kryo 实例
+	 *
+	 * @return 当前线程的 Kryo 实例
+	 */
+	public static Kryo getInstance() {
+		return kryoLocal.get();
+	}
+
+	/**
+	 * 将对象序列化为 byte 数组
+	 *
+	 * @param obj 任意对象
+	 * @param <T> 对象的类型
+	 * @return 序列化后的 byte 数组
+	 */
+	public static <T> byte[] writeToBytes(T obj) {
+		ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+		Output output = new Output(byteArrayOutputStream);
+
+		Kryo kryo = getInstance();
+		kryo.writeObject(output, obj);
+		output.flush();
+
+		return byteArrayOutputStream.toByteArray();
+	}
+
+	/**
+	 * 将对象序列化为 byte 数组后，再使用 Base64 编码
+	 *
+	 * @param obj 任意对象
+	 * @param <T> 对象的类型
+	 * @return 序列化后的字符串
+	 */
+	public static <T> String writeToString(T obj) {
+		byte[] bytes = writeToBytes(obj);
+		return new String(Base64.getEncoder().encode(bytes), StandardCharsets.UTF_8);
+	}
+
+	/**
+	 * 将 byte 数组反序列化为原对象
+	 *
+	 * @param bytes {@link #writeToBytes} 方法序列化后的 byte 数组
+	 * @param clazz 原对象的类型
+	 * @param <T>   原对象的类型
+	 * @return 原对象
+	 */
+	@SuppressWarnings("unchecked")
+	public static <T> T readFromBytes(byte[] bytes, Class<T> clazz) {
+		ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(bytes);
+		Input input = new Input(byteArrayInputStream);
+
+		Kryo kryo = getInstance();
+		return (T) kryo.readObject(input, clazz);
+	}
+
+	/**
+	 * 将字符串反序列化为原对象，先使用 Base64 解码
+	 *
+	 * @param str   {@link #writeToString} 方法序列化后的字符串
+	 * @param clazz 原对象的类型
+	 * @param <T>   原对象的类型
+	 * @return 原对象
+	 */
+	public static <T> T readFromString(String str, Class<T> clazz) {
+		byte[] bytes = str.getBytes(StandardCharsets.UTF_8);
+		return readFromBytes(Base64.getDecoder().decode(bytes), clazz);
+	}
+
+}
+```
+
+测试：
+
+```java
+long begin = System.currentTimeMillis();
+for (int i = 0; i < BATCH_SIZE; i++) {
+    TestBean oldBean = BeanUtils.initJdk8Bean();
+    byte[] bytes = KryoDemo.writeToBytes(oldBean);
+    TestBean newBean = KryoDemo.readFromBytes(bytes, TestBean.class);
+}
+long end = System.currentTimeMillis();
+System.out.printf("Kryo 序列化/反序列化耗时：%s", (end - begin));
+```
 
 ## 参考资料
 
@@ -149,4 +335,4 @@ TestBean newBean = JdkSerializeDemo.deserialize(bytes, TestBean.class);
   - [Hessian 官网](http://hessian.caucho.com/)
   - [FST Github](https://github.com/RuedigerMoeller/fast-serialization)
 - **文章**
-  - [java序列化框架对比](https://www.jianshu.com/p/937883b6b2e5)
+  - [java 序列化框架对比](https://www.jianshu.com/p/937883b6b2e5)
